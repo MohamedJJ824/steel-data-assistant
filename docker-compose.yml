@@ -1,0 +1,28 @@
+# Day 1 stack: the database only. api, ui, mlflow and the local-llm profile
+# arrive at milestone 6 (industrialisation).
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: sda-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-steel}
+      ASSISTANT_RO_PASSWORD: ${ASSISTANT_RO_PASSWORD:?ASSISTANT_RO_PASSWORD is required}
+      APP_RW_PASSWORD: ${APP_RW_PASSWORD:?APP_RW_PASSWORD is required}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-steel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

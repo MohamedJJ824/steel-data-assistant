@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment
+.env
+
+# Data (downloaded, not committed)
+data/raw/
+data/processed/
+
+# Models / caches
+.cache/
+models/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+
+# Eval outputs (generated)
+eval/gold_results/
+eval/runs/

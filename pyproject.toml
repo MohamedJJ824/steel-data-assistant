@@ -1,0 +1,64 @@
+[project]
+name = "steel-assistant"
+version = "0.1.0"
+description = "GenAI agent answering questions over a steel plant's SQL database, French document corpus and legacy analytics code."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "sqlglot>=25.0",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "pyyaml>=6.0",
+    "pandas>=2.2",
+    "certifi>=2024.7.4",
+    "ucimlrepo>=0.0.7",
+    "httpx>=0.27",
+    "tenacity>=8.5",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "langgraph>=0.2",
+    "sentence-transformers>=3.0",
+    "python-frontmatter>=1.1",
+    "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+ui = ["streamlit>=1.38"]
+eval = ["mlflow>=2.16"]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/steel_assistant"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "D"]
+ignore = ["D203", "D213", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "ANN"]
+"scripts/*" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "llm: needs a reachable LLM backend",
+    "db: needs a reachable Postgres instance",
+]

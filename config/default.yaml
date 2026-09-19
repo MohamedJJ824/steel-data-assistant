@@ -1,0 +1,64 @@
+# All tunables. Every value is overridable by an env var with prefix SDA_ and
+# __ as the nesting separator, e.g. SDA_LLM__BACKEND=openai_compatible.
+# No URLs, model names or thresholds are hard-coded in application code.
+
+db:
+  host: localhost
+  port: 5433
+  name: steel
+  # Role used by the sql_query tool. Read-only, schema plant only.
+  assistant_user: assistant_ro
+  # Role used by the API for rag reads and app writes.
+  app_user: app_rw
+  statement_timeout_s: 5
+
+llm:
+  backend: ollama              # ollama | openai_compatible
+  base_url: http://localhost:11434
+  api_key: ""
+  # Small models chosen for an 8 GB machine; see DECISIONS.md.
+  agent_model: qwen3:4b
+  sql_model: qwen3:4b
+  judge_model: qwen3:4b
+  temperature: 0.0
+  timeout_s: 120
+  max_retries: 2
+
+retrieval:
+  embedding_model: intfloat/multilingual-e5-base
+  embedding_dim: 768           # must match rag.chunks.embedding
+  # e5 models require these prefixes; bge-m3 needs neither.
+  query_prefix: "query: "
+  passage_prefix: "passage: "
+  mode: hybrid                 # dense | hybrid
+  rerank: false
+  reranker_model: BAAI/bge-reranker-v2-m3
+  top_k: 5
+  candidates_per_branch: 20    # dense top-N and keyword top-N before fusion
+  rrf_k: 60
+  chunk_max_tokens: 500
+  chunk_overlap_tokens: 50
+  code_class_split_lines: 150  # split a class per method beyond this length
+
+sql:
+  fewshot: static              # none | static | dynamic
+  fewshot_k: 4                 # used when fewshot is dynamic
+  max_retries: 2               # self-correction attempts after a rejection
+  max_rows_returned: 50        # rows shown to the user
+  default_limit: 200           # LIMIT injected when the query has none
+  allowed_schemas: [plant]
+
+agent:
+  mode: router                 # router | tool_calling
+  max_tool_calls: 5
+
+api:
+  key: ""
+  host: 0.0.0.0
+  port: 8000
+
+eval:
+  experiment_name: steel-assistant-eval
+  seed: 42
+
+seed: 42

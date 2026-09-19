@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres
+          POSTGRES_DB: steel
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d steel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ci-postgres
+      POSTGRES_DB: steel
+      POSTGRES_PORT: 5433
+      ASSISTANT_RO_PASSWORD: ci-assistant-ro
+      APP_RW_PASSWORD: ci-app-rw
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: |
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -e ".[dev]"
+
+      - name: Lint
+        run: |
+          .venv/bin/python -m ruff check .
+          .venv/bin/python -m ruff format --check .
+
+      # The service container does not run docker-entrypoint-initdb.d, so the
+      # init scripts are applied by hand here. Same files, same order.
+      - name: Initialise the database
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          export PGPASSWORD=$POSTGRES_PASSWORD
+          for f in docker/db/init/0[123]_*.sql; do
+            psql -h localhost -p 5433 -U postgres -d steel -v ON_ERROR_STOP=1 -f "$f"
+          done
+          PGHOST=localhost PGPORT=5433 bash docker/db/init/04_roles.sh
+
+      - name: Unit tests
+        run: .venv/bin/python -m pytest -m "not llm and not db" -q
+
+      # Integration tests that need seeded data are skipped: downloading the
+      # UCI datasets on every push is not a reasonable CI dependency. The
+      # permission tests, which need only the schema, do run.
+      - name: Permission tests
+        run: .venv/bin/python -m pytest tests/integration/test_db_permissions.py -q -k "not can_select"
