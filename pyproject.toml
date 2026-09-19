@@ -44,6 +44,9 @@ packages = ["src/steel_assistant"]
 line-length = 100
 target-version = "py311"
 src = ["src", "scripts", "tests"]
+# corpus/ is data to be searched, not application code. It is deliberately
+# uneven in style, so linting it would be meaningless.
+exclude = ["corpus"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "D"]

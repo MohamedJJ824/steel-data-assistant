@@ -86,3 +86,39 @@ Format: date, decision, reason, alternatives considered.
 **Reason.** Role passwords come from the environment, and a plain `.sql` file run by the Postgres entrypoint cannot read env vars. The entrypoint executes `.sh` files in the same alphabetical pass, so ordering is unaffected.
 
 **Alternatives.** Hard-code the passwords in the SQL — rejected by plan rule 6.
+
+---
+
+## 2026-09-19 — Local inference measured at ~5 tokens/second
+
+**Decision.** Recorded as a constraint, not yet acted on. The evaluation plan (five configurations × ~60 questions) needs re-scoping or a faster backend before milestone 5.
+
+**Reason.** Measured on this machine with `qwen3:4b` warm, `keep_alive` set, three consecutive calls: 48-53 s wall per short answer, ~250 output tokens, **5.0-5.2 tok/s**. An M2 should manage roughly 25-30 tok/s for a 4B model. The cause is memory pressure, not the model: `sysctl vm.swapusage` reports **12.5 GB of 13.3 GB swap in use** with 15% of physical memory free, so weights are being paged in and out during generation.
+
+**Consequence.** At this rate one agent run is 1-3 minutes, so 300 evaluation runs plus judge calls is roughly 8-12 hours. Every LLM-free component (chunkers, SQL guard, hybrid search, metrics) is built and tested independently so that none of it is blocked on inference speed.
+
+**Alternatives.** A 1.7B model would roughly double throughput at a real cost in SQL quality. A hosted OpenAI-compatible endpoint would remove the constraint entirely. Both remain a config change.
+
+---
+
+## 2026-09-19 — `qwen3:4b` capabilities confirmed by probe
+
+**Decision.** Keep `router` as the default agent mode, but `tool_calling` (config C4) is genuinely testable on this model. Every LLM call prepends `/no_think`.
+
+**Reason.** Probed directly against the Ollama API:
+
+* **Structured output works.** Passing a JSON schema in `format` returned valid, parseable JSON on the first try — this is what the `sql_query` tool depends on.
+* **Native tool calling works.** The model emitted a well-formed `tool_calls` entry with the right function and arguments, so C4 is a real comparison rather than a guaranteed failure.
+* **`think: false` does not suppress reasoning.** It leaks into `message.content` as prose while `message.thinking` stays empty. The `/no_think` directive in the user message does work, returning a clean `OK`. Without it, every answer would be polluted with the model's internal monologue.
+
+**Alternatives.** Stripping `<think>` tags after the fact — kept as a defensive fallback in the client, since `/no_think` is a model-specific convention that a backend swap would silently drop.
+
+---
+
+## 2026-09-19 — Legacy code corpus is hand-written, not generated
+
+**Decision.** The 12 files in `corpus/legacy_code/` were written directly rather than produced by the LLM.
+
+**Reason.** This corpus is the ground truth for the `search_code` evaluation questions, so each file needs specific, checkable logic to target: the energy-intensity denominator is a plate count and not a tonnage, `ALWAYS_HOLD` overrides the reference table's severity, the night shift is imputed to the day it started. Generated prose tends to average those details away, and the corpus is committed anyway.
+
+**Consequence.** `corpus/` is excluded from `ruff`: it is deliberately uneven in style, with French comments and `TODO`s, because that is what it is imitating.
