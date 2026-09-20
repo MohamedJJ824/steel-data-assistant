@@ -114,9 +114,7 @@ def _is_bare_aggregate(statement: exp.Expression) -> bool:
     expressions = select.expressions
     if not expressions:
         return False
-    return all(
-        isinstance(projection.unalias(), exp.AggFunc) for projection in expressions
-    )
+    return all(isinstance(projection.unalias(), exp.AggFunc) for projection in expressions)
 
 
 def _check_no_writes(statement: exp.Expression) -> None:
@@ -128,8 +126,7 @@ def _check_no_writes(statement: exp.Expression) -> None:
     for node in statement.walk():
         if isinstance(node, WRITE_EXPRESSIONS):
             raise SQLGuardError(
-                f"only SELECT statements are allowed, found a nested "
-                f"{type(node).__name__.upper()}"
+                f"only SELECT statements are allowed, found a nested {type(node).__name__.upper()}"
             )
 
 
@@ -141,9 +138,7 @@ def _check_root_is_select(statement: exp.Expression) -> None:
         return
     if isinstance(statement, exp.Union | exp.Except | exp.Intersect):
         return
-    raise SQLGuardError(
-        f"the statement must be a SELECT, got {type(statement).__name__.upper()}"
-    )
+    raise SQLGuardError(f"the statement must be a SELECT, got {type(statement).__name__.upper()}")
 
 
 def _check_ctes_are_selects(statement: exp.Expression) -> None:
@@ -156,8 +151,7 @@ def _check_ctes_are_selects(statement: exp.Expression) -> None:
         inner = cte.this
         if isinstance(inner, WRITE_EXPRESSIONS):
             raise SQLGuardError(
-                f"CTE '{cte.alias}' must be a SELECT, got "
-                f"{type(inner).__name__.upper()}"
+                f"CTE '{cte.alias}' must be a SELECT, got {type(inner).__name__.upper()}"
             )
 
 
@@ -204,13 +198,11 @@ def _check_tables(statement: exp.Expression, allowed_schemas: tuple[str, ...]) -
 
         if not schema:
             raise SQLGuardError(
-                f"table '{name}' is not schema-qualified; write "
-                f"'{allowed_schemas[0]}.{name}'"
+                f"table '{name}' is not schema-qualified; write '{allowed_schemas[0]}.{name}'"
             )
         if schema.lower() not in allowed_schemas:
             raise SQLGuardError(
-                f"schema '{schema}' is not readable; allowed: "
-                f"{', '.join(allowed_schemas)}"
+                f"schema '{schema}' is not readable; allowed: {', '.join(allowed_schemas)}"
             )
         tables.append(_qualified_name(table))
 
@@ -252,9 +244,7 @@ def guard_sql(
 
     statements = [statement for statement in statements if statement is not None]
     if len(statements) != 1:
-        raise SQLGuardError(
-            f"exactly one statement is allowed, got {len(statements)}"
-        )
+        raise SQLGuardError(f"exactly one statement is allowed, got {len(statements)}")
 
     statement = statements[0]
 

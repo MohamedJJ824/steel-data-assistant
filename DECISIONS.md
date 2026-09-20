@@ -192,3 +192,27 @@ This was not a speed annoyance but a blocker: at roughly eight minutes per call,
 **Reason.** Evidence that the sample rows earn their tokens: the very first model probe of this project, with no schema context, generated `load_type = 'maximum load'`. The stored value is `Maximum_Load`, so that query returns zero rows and the wrong answer looks like a legitimate empty result. With the sample rows in the prompt, the same model got it exactly right.
 
 **Consequence.** The rendered context is about 10.7 KB, roughly 2,700 tokens — which is why `num_ctx` is 8192 rather than the 4096 default. `plant.plate_inspections` and its 27 measurement columns dominate; if the context needs trimming later, that table is where to start.
+
+---
+
+## 2026-09-20 — The router needs worked examples, and it is measurable
+
+**Decision.** `ROUTER_SYSTEM` carries ten worked examples instead of category definitions alone.
+
+**Reason.** Measured on the default model over ten questions, zero-shot classification scored **7/10**; with examples it scored **9/10**, and ran faster (36 s against 54 s) because the justifications got shorter. The zero-shot failures were not marginal: "Combien de tôles ont un défaut Bumps ?" went to `code`, and "Quelle est la durée de mise en attente pour une rayure en Z ?" went to `out_of_scope` — a plain refusal of an answerable question.
+
+**Caveat.** Ten questions chosen by hand is a sanity check, not an evaluation. The real number comes from the milestone 5 routing-accuracy metric over the full question set, and this entry is not a claim about that.
+
+**The remaining failure is arguably not one.** "Quel est le seuil d'alerte de pointe de consommation ?" classifies as `code`, and the threshold genuinely lives in both `POL-ENR-PEAK` and `config_thresholds.py`. It is a `multi` question, and the evaluation set should label it that way.
+
+**Worth noting for the report.** When the router sent that SQL question to `code`, synthesis did not invent a count — it said the figure was not in the outputs. Wrong routing produced a non-answer rather than a confident wrong answer, which is the failure mode to prefer.
+
+---
+
+## 2026-09-20 — Citations must be copied, not templated
+
+**Decision.** The synthesis prompt tells the model to copy a citation verbatim from the `--- SOURCE ... ---` header, and forbids bracket citations for SQL figures.
+
+**Reason.** The first end-to-end request returned: *"Il y a 402 tôles avec un défaut Bumps ... [DOC-ID §1]"*. The count was right and grounded 1/1, but `[DOC-ID §1]` is a citation to nothing — the model had copied the placeholder out of the instructions. A fabricated citation is worse than none, because it looks checkable.
+
+**Consequence.** The placeholder is gone. The model now sometimes restates the question and omits the SQL attribution instead, which the milestone 5 faithfulness metric will measure rather than being tuned against by hand.

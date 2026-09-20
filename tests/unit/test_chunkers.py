@@ -115,9 +115,7 @@ def test_heading_path_is_nested(md_chunks):
 def test_sibling_heading_pops_the_stack(md_chunks):
     """Escalade is a sibling of Actions immédiates, not a child of Sous-section."""
     assert "Titre principal > Escalade" in [c.section for c in md_chunks]
-    assert not any(
-        c.section and c.section.endswith("Sous-section > Escalade") for c in md_chunks
-    )
+    assert not any(c.section and c.section.endswith("Sous-section > Escalade") for c in md_chunks)
 
 
 def test_front_matter_becomes_metadata(md_chunks):

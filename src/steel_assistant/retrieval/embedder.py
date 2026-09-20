@@ -36,12 +36,8 @@ class Embedder:
         """Configure the embedder. The model itself loads lazily."""
         settings = get_settings().retrieval
         self.model_name = model_name or settings.embedding_model
-        self.query_prefix = (
-            settings.query_prefix if query_prefix is None else query_prefix
-        )
-        self.passage_prefix = (
-            settings.passage_prefix if passage_prefix is None else passage_prefix
-        )
+        self.query_prefix = settings.query_prefix if query_prefix is None else query_prefix
+        self.passage_prefix = settings.passage_prefix if passage_prefix is None else passage_prefix
         self.expected_dim = expected_dim or settings.embedding_dim
         self._model: SentenceTransformer | None = None
 
@@ -61,9 +57,10 @@ class Embedder:
                     model = SentenceTransformer(self.model_name)
                     # Renamed in sentence-transformers 6.x; support both so a
                     # pinned older version still works.
-                    get_dim = getattr(
-                        model, "get_embedding_dimension", None
-                    ) or model.get_sentence_embedding_dimension
+                    get_dim = (
+                        getattr(model, "get_embedding_dimension", None)
+                        or model.get_sentence_embedding_dimension
+                    )
                     actual = get_dim()
                     if actual != self.expected_dim:
                         raise RuntimeError(

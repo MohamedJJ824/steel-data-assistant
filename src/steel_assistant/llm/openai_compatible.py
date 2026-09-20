@@ -37,9 +37,7 @@ class OpenAICompatibleClient:
         self.temperature = settings.temperature
         key = api_key if api_key is not None else settings.api_key.get_secret_value()
         headers = {"Authorization": f"Bearer {key}"} if key else {}
-        self._client = httpx.Client(
-            base_url=self.base_url, timeout=self.timeout_s, headers=headers
-        )
+        self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout_s, headers=headers)
 
     def is_available(self) -> bool:
         """True when the server lists its models."""

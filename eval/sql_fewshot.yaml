@@ -1,0 +1,82 @@
+# Few-shot examples for text-to-SQL.
+#
+# These must NOT overlap with eval/questions.jsonl. `make eval` runs a leakage
+# check that compares normalised text and embedding similarity; an example that
+# is a paraphrase of an evaluation question would inflate every SQL metric.
+#
+# Chosen to cover the shapes the model gets wrong without a demonstration:
+# the literal spelling of load_type, the end-of-interval timestamp convention,
+# the three-way join through fault_types, and the night shift wrapping midnight.
+
+examples:
+  - question: "Combien de tôles ont été inspectées sur la ligne L2 ?"
+    sql: |
+      SELECT count(*) AS nb_toles
+      FROM plant.plate_inspections
+      WHERE line_id = 'L2';
+
+  - question: "What is the average power factor during maximum load intervals?"
+    sql: |
+      SELECT avg(lagging_current_power_factor) AS avg_power_factor
+      FROM plant.energy_readings
+      WHERE load_type = 'Maximum_Load';
+
+  - question: "Quelle est la consommation totale d'énergie par mois en 2018 ?"
+    sql: |
+      SELECT date_trunc('month', ts) AS mois,
+             sum(usage_kwh) AS total_kwh
+      FROM plant.energy_readings
+      GROUP BY 1
+      ORDER BY 1;
+
+  - question: "Which fault type is the most severe and how many plates have it?"
+    sql: |
+      SELECT f.fault_code, f.severity, count(p.plate_id) AS plate_count
+      FROM plant.fault_types f
+      LEFT JOIN plant.plate_inspections p ON p.fault_code = f.fault_code
+      GROUP BY f.fault_code, f.severity
+      ORDER BY f.severity DESC, plate_count DESC;
+
+  - question: "Quelle ligne a cumulé le plus de minutes d'arrêt correctif ?"
+    sql: |
+      SELECT m.line_id, l.name_fr, sum(m.downtime_minutes) AS minutes_arret
+      FROM plant.maintenance_events m
+      JOIN plant.production_lines l ON l.line_id = m.line_id
+      WHERE m.category = 'corrective'
+      GROUP BY m.line_id, l.name_fr
+      ORDER BY minutes_arret DESC;
+
+  - question: "How many maintenance events have no report document?"
+    sql: |
+      SELECT count(*) AS events_without_report
+      FROM plant.maintenance_events
+      WHERE report_doc_id IS NULL;
+
+  - question: "Répartition des défauts par nuance d'acier"
+    sql: |
+      SELECT steel_grade, fault_code, count(*) AS nb
+      FROM plant.plate_inspections
+      GROUP BY steel_grade, fault_code
+      ORDER BY steel_grade, nb DESC;
+
+  - question: "Energy consumed during the night shift, which runs 22:00 to 06:00"
+    sql: |
+      SELECT sum(usage_kwh) AS night_kwh
+      FROM plant.energy_readings
+      WHERE extract(hour FROM ts) >= 22
+         OR extract(hour FROM ts) < 6;
+
+  - question: "Quels défauts critiques ont provoqué un arrêt de plus de deux heures ?"
+    sql: |
+      SELECT m.event_id, m.line_id, m.fault_code, f.severity, m.downtime_minutes
+      FROM plant.maintenance_events m
+      JOIN plant.fault_types f ON f.fault_code = m.fault_code
+      WHERE f.severity = 3
+        AND m.downtime_minutes > 120
+      ORDER BY m.downtime_minutes DESC;
+
+  - question: "Number of 15-minute intervals above 99 kWh"
+    sql: |
+      SELECT count(*) AS peak_intervals
+      FROM plant.energy_readings
+      WHERE usage_kwh > 99.0;

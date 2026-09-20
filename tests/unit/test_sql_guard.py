@@ -45,7 +45,10 @@ REJECTED = [
     ("select into", "SELECT * INTO plant.copy FROM plant.shifts"),
     ("for update", "SELECT * FROM plant.shifts FOR UPDATE"),
     ("data-modifying CTE", "WITH d AS (DELETE FROM plant.shifts RETURNING *) SELECT * FROM d"),
-    ("insert CTE", "WITH i AS (INSERT INTO plant.shifts VALUES ('X','x','x',0,1) RETURNING *) SELECT * FROM i"),
+    (
+        "insert CTE",
+        "WITH i AS (INSERT INTO plant.shifts VALUES ('X','x','x',0,1) RETURNING *) SELECT * FROM i",
+    ),
     # Malformed or empty.
     ("empty", ""),
     ("whitespace", "   \n  "),
@@ -128,8 +131,14 @@ ACCEPTED = [
         "SELECT * FROM plant.plate_inspections WHERE fault_code IN "
         "(SELECT fault_code FROM plant.fault_types WHERE severity = 3)",
     ),
-    ("case expression", "SELECT CASE WHEN severity = 3 THEN 'high' ELSE 'low' END FROM plant.fault_types"),
-    ("date functions", "SELECT date_trunc('month', ts), extract(hour FROM ts) FROM plant.energy_readings"),
+    (
+        "case expression",
+        "SELECT CASE WHEN severity = 3 THEN 'high' ELSE 'low' END FROM plant.fault_types",
+    ),
+    (
+        "date functions",
+        "SELECT date_trunc('month', ts), extract(hour FROM ts) FROM plant.energy_readings",
+    ),
 ]
 
 
@@ -171,9 +180,7 @@ def test_multiple_aggregates_still_count_as_aggregate():
 
 def test_group_by_is_not_a_bare_aggregate():
     """GROUP BY can return many rows, so it still needs a LIMIT."""
-    result = guard_sql(
-        "SELECT line_id, count(*) FROM plant.plate_inspections GROUP BY line_id"
-    )
+    result = guard_sql("SELECT line_id, count(*) FROM plant.plate_inspections GROUP BY line_id")
     assert result.is_aggregate is False
     assert result.limit_added is True
 
@@ -225,7 +232,10 @@ EVASION_ATTEMPTS = [
     ("pg_sleep in subquery", "SELECT * FROM plant.shifts WHERE 1 = (SELECT pg_sleep(9))"),
     ("function in ORDER BY", "SELECT * FROM plant.shifts ORDER BY pg_sleep(5)"),
     ("set-returning function in FROM", "SELECT * FROM plant.shifts, pg_ls_dir('/')"),
-    ("union reaching rag", "SELECT shift_code FROM plant.shifts UNION SELECT source_id FROM rag.chunks"),
+    (
+        "union reaching rag",
+        "SELECT shift_code FROM plant.shifts UNION SELECT source_id FROM rag.chunks",
+    ),
     ("EXPLAIN wrapper", "EXPLAIN SELECT * FROM plant.shifts"),
     ("COPY", "COPY plant.shifts TO '/tmp/x'"),
     (
@@ -251,7 +261,5 @@ def test_cte_may_shadow_a_forbidden_table_name():
     The CTE never touches rag.chunks, so rejecting this would be a false
     positive that blocks a legitimate query.
     """
-    result = guard_sql(
-        "WITH chunks AS (SELECT 1 AS x FROM plant.shifts) SELECT * FROM chunks"
-    )
+    result = guard_sql("WITH chunks AS (SELECT 1 AS x FROM plant.shifts) SELECT * FROM chunks")
     assert result.tables == ["plant.shifts"]

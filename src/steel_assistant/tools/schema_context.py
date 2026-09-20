@@ -55,10 +55,7 @@ class TableInfo:
 def _fetch_tables(conn: object, schema: str) -> list[str]:
     return list(
         conn.execute(  # type: ignore[attr-defined]
-            text(
-                "SELECT tablename FROM pg_tables WHERE schemaname = :schema "
-                "ORDER BY tablename"
-            ),
+            text("SELECT tablename FROM pg_tables WHERE schemaname = :schema ORDER BY tablename"),
             {"schema": schema},
         ).scalars()
     )
@@ -80,8 +77,7 @@ def _fetch_columns(conn: object, schema: str, table: str) -> list[ColumnInfo]:
         {"schema": schema, "table": table},
     ).all()
     return [
-        ColumnInfo(name=r[0], data_type=r[1], nullable=r[2] == "YES", comment=r[3])
-        for r in rows
+        ColumnInfo(name=r[0], data_type=r[1], nullable=r[2] == "YES", comment=r[3]) for r in rows
     ]
 
 

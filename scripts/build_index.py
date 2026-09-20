@@ -86,9 +86,7 @@ def index_chunks(conn: object, chunks: list[Chunk], source_type: str) -> None:
         # about, purely because they all contain the word "défaut".
         if chunk.source_type == "doc":
             heading = " ".join(
-                part
-                for part in (str(chunk.metadata.get("title", "")), chunk.section or "")
-                if part
+                part for part in (str(chunk.metadata.get("title", "")), chunk.section or "") if part
             )
         else:
             heading = f"{chunk.source_id} {chunk.section or ''}"
@@ -133,9 +131,7 @@ def index_chunks(conn: object, chunks: list[Chunk], source_type: str) -> None:
 def main() -> int:
     """Index every corpus file whose content has changed."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--rebuild", action="store_true", help="delete every chunk and re-index"
-    )
+    parser.add_argument("--rebuild", action="store_true", help="delete every chunk and re-index")
     args = parser.parse_args()
 
     settings = get_settings().retrieval
@@ -157,8 +153,10 @@ def main() -> int:
         chunks = chunk_file(
             path,
             **(
-                {"max_tokens": settings.chunk_max_tokens,
-                 "overlap_tokens": settings.chunk_overlap_tokens}
+                {
+                    "max_tokens": settings.chunk_max_tokens,
+                    "overlap_tokens": settings.chunk_overlap_tokens,
+                }
                 if path.suffix == ".md"
                 else {"class_split_lines": settings.code_class_split_lines}
                 if path.suffix == ".py"
@@ -175,9 +173,7 @@ def main() -> int:
             continue
 
         with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM rag.chunks WHERE source_id = :sid"), {"sid": source_id}
-            )
+            conn.execute(text("DELETE FROM rag.chunks WHERE source_id = :sid"), {"sid": source_id})
             index_chunks(conn, chunks, source_type)
         changed += 1
         total_chunks += len(chunks)
@@ -196,8 +192,7 @@ def main() -> int:
         ).scalar_one()
 
     print(
-        f"\n{changed} sources indexed ({total_chunks} chunks), {skipped} unchanged, "
-        f"{elapsed:.1f}s"
+        f"\n{changed} sources indexed ({total_chunks} chunks), {skipped} unchanged, {elapsed:.1f}s"
     )
     print(f"rag.chunks: {counts.get('doc', 0)} doc, {counts.get('code', 0)} code")
     if missing:

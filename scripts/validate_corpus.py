@@ -185,9 +185,7 @@ def main() -> int:  # noqa: PLR0912, PLR0915 - a linear list of checks reads bet
         if post.metadata.get("doc_type") == "maintenance_report"
     }
     orphans = corpus_reports - set(report_docs)
-    report.check(
-        not orphans, f"report documents with no matching event: {sorted(orphans)}"
-    )
+    report.check(not orphans, f"report documents with no matching event: {sorted(orphans)}")
     report.ok(f"{len(report_docs)} reports match their events in both directions")
 
     # 5: reports state the downtime their event actually has.
