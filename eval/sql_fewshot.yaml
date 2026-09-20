@@ -9,11 +9,12 @@
 # the three-way join through fault_types, and the night shift wrapping midnight.
 
 examples:
-  - question: "Combien de tôles ont été inspectées sur la ligne L2 ?"
+  - question: "Libellé français du défaut pour les tôles de nuance A400"
     sql: |
-      SELECT count(*) AS nb_toles
-      FROM plant.plate_inspections
-      WHERE line_id = 'L2';
+      SELECT p.plate_id, f.label_fr
+      FROM plant.plate_inspections p
+      JOIN plant.fault_types f ON f.fault_code = p.fault_code
+      WHERE p.steel_grade = 'A400';
 
   - question: "What is the average power factor during maximum load intervals?"
     sql: |
@@ -21,11 +22,11 @@ examples:
       FROM plant.energy_readings
       WHERE load_type = 'Maximum_Load';
 
-  - question: "Quelle est la consommation totale d'énergie par mois en 2018 ?"
+  - question: "Nombre d'interventions de maintenance par mois"
     sql: |
-      SELECT date_trunc('month', ts) AS mois,
-             sum(usage_kwh) AS total_kwh
-      FROM plant.energy_readings
+      SELECT date_trunc('month', started_at) AS mois,
+             count(*) AS nb_interventions
+      FROM plant.maintenance_events
       GROUP BY 1
       ORDER BY 1;
 
@@ -37,13 +38,11 @@ examples:
       GROUP BY f.fault_code, f.severity
       ORDER BY f.severity DESC, plate_count DESC;
 
-  - question: "Quelle ligne a cumulé le plus de minutes d'arrêt correctif ?"
+  - question: "Durée d'arrêt cumulée par catégorie de maintenance"
     sql: |
-      SELECT m.line_id, l.name_fr, sum(m.downtime_minutes) AS minutes_arret
+      SELECT m.category, sum(m.downtime_minutes) AS minutes_arret
       FROM plant.maintenance_events m
-      JOIN plant.production_lines l ON l.line_id = m.line_id
-      WHERE m.category = 'corrective'
-      GROUP BY m.line_id, l.name_fr
+      GROUP BY m.category
       ORDER BY minutes_arret DESC;
 
   - question: "How many maintenance events have no report document?"

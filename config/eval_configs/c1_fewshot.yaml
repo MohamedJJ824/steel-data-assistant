@@ -1,0 +1,10 @@
+# C1: adds static few-shot examples and SQL self-correction.
+# Isolates what prompting and retrying are worth.
+agent:
+  mode: router
+sql:
+  fewshot: static
+  max_retries: 2
+retrieval:
+  mode: dense
+  rerank: false

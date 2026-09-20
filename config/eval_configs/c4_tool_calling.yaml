@@ -1,0 +1,9 @@
+# C4: C3 but the model drives tool selection instead of the router.
+agent:
+  mode: tool_calling
+sql:
+  fewshot: dynamic
+  max_retries: 2
+retrieval:
+  mode: hybrid
+  rerank: true

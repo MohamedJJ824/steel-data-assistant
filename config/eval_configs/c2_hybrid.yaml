@@ -1,0 +1,9 @@
+# C2: C1 plus hybrid retrieval. Isolates the keyword branch.
+agent:
+  mode: router
+sql:
+  fewshot: static
+  max_retries: 2
+retrieval:
+  mode: hybrid
+  rerank: false

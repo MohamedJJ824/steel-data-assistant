@@ -1,0 +1,9 @@
+# C3: C2 plus dynamic few-shot selection and cross-encoder reranking.
+agent:
+  mode: router
+sql:
+  fewshot: dynamic
+  max_retries: 2
+retrieval:
+  mode: hybrid
+  rerank: true

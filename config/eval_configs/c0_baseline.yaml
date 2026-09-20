@@ -1,0 +1,10 @@
+# C0 baseline: no few-shot, no self-correction, dense retrieval, no rerank.
+# The floor every other configuration is measured against.
+agent:
+  mode: router
+sql:
+  fewshot: none
+  max_retries: 0
+retrieval:
+  mode: dense
+  rerank: false
