@@ -41,6 +41,12 @@ CREATE ROLE app_rw LOGIN PASSWORD '${APP_RW_PASSWORD}';
 GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO app_rw;
 GRANT USAGE ON SCHEMA plant, rag, app TO app_rw;
 
+-- The pgvector extension installs its types into public. Revoking public
+-- above left app_rw unable to resolve the 'vector' type, so every dense
+-- search failed with 'type vector does not exist'. public holds no tables
+-- (CREATE was revoked), so USAGE here only exposes the type namespace.
+GRANT USAGE ON SCHEMA public TO app_rw;
+
 GRANT SELECT ON ALL TABLES IN SCHEMA plant TO app_rw;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA rag TO app_rw;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA app TO app_rw;

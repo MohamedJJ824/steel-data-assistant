@@ -122,3 +122,45 @@ Format: date, decision, reason, alternatives considered.
 **Reason.** This corpus is the ground truth for the `search_code` evaluation questions, so each file needs specific, checkable logic to target: the energy-intensity denominator is a plate count and not a tonnage, `ALWAYS_HOLD` overrides the reference table's severity, the night shift is imputed to the day it started. Generated prose tends to average those details away, and the corpus is committed anyway.
 
 **Consequence.** `corpus/` is excluded from `ruff`: it is deliberately uneven in style, with French comments and `TODO`s, because that is what it is imitating.
+
+---
+
+## 2026-09-20 — Document facts are injected, not generated
+
+**Decision.** `scripts/generate_docs.py` writes every fact itself — event ids, dates, downtime, thresholds, counts, hold durations — directly from the database. The LLM writes only connecting prose, and each prose section has a deterministic fallback.
+
+**Reason.** Plan section 6.6 has the LLM write documents from injected facts. Letting it write the *numbers* would make the corpus uncheckable: `validate_corpus.py` could not compare a document against the database, and no evaluation question over these documents would have a gold answer. Splitting the two also means a model failure degrades prose, never correctness.
+
+**Consequence.** `--no-llm` produces a complete, valid corpus. The LLM pass is an improvement, not a dependency, which matters when one pass takes about an hour at 5 tok/s.
+
+---
+
+## 2026-09-20 — `app_rw` needs USAGE on `public` for the `vector` type
+
+**Decision.** `GRANT USAGE ON SCHEMA public TO app_rw`.
+
+**Reason.** A bug introduced by the role hardening in milestone 1. `04_roles.sh` runs `REVOKE ALL ON SCHEMA public FROM PUBLIC`, but pgvector installs its types into `public`. Every dense search then failed with `type "vector" does not exist`, while indexing worked because it runs as superuser. Caught by the first end-to-end retrieval run.
+
+**Consequence.** `public` holds no tables — `CREATE` stays revoked — so this exposes the type namespace and nothing else. `assistant_ro` is deliberately not granted it: `has_schema_privilege('assistant_ro','public','USAGE')` is still false.
+
+---
+
+## 2026-09-20 — Keyword search uses OR semantics, not `websearch_to_tsquery`'s AND
+
+**Decision.** Rewrite the parsed tsquery's `&` operators to `|` before matching.
+
+**Reason.** `websearch_to_tsquery` joins every term with AND, so a chunk must contain *all* of a question's words. Measured: `"défaut Z_Scratch actions immédiates"` matched **0** chunks under AND and **133** under OR, with the correct procedure at keyword rank 15 — inside the 20-candidate fusion window, which is what RRF needs. Under AND the keyword branch returned nothing for almost every natural-language question, so `retrieval.mode: hybrid` was silently identical to `dense`, and the C1-versus-C2 evaluation would have compared a configuration against itself.
+
+**Alternatives.** `plainto_tsquery` — same AND semantics. Trying AND and falling back to OR — more moving parts for no measured gain.
+
+---
+
+## 2026-09-20 — The tsvector weights headings above body text
+
+**Decision.** `setweight(to_tsvector(config, heading), 'A') || setweight(to_tsvector(config, content), 'B')`, where the heading is `title > section` for documents and `path symbol` for code.
+
+**Reason.** Switching to OR semantics caused a regression: the twenty maintenance reports are near-identical by construction, all containing "défaut" and a fault code, so they flooded the keyword branch and pushed `PROC-FLT-ZSCR` off the top for the very query it should win. Weighting the heading fixed it — `ts_rank_cd` applies the default weights {A 1.0, B 0.4}, so a chunk whose *section* is "Actions immédiates" outranks twenty chunks that merely mention the words.
+
+**Consequence.** Changing the tsvector requires `build_index.py --rebuild`, not an incremental run: the content hash is unchanged, so the incremental path would skip every file.
+
+**Measured after the fix.** Twelve targeted retrieval queries across both corpora return the expected source at rank 1, under both `dense` and `hybrid`. These smoke queries are too easy to separate the two modes — that is what the milestone 5 evaluation is for, and no claim that hybrid beats dense is made until it is measured.
