@@ -41,6 +41,7 @@ class OllamaClient:
         self.timeout_s = timeout_s or settings.timeout_s
         self.temperature = settings.temperature
         self.num_ctx = settings.num_ctx
+        self.num_predict = settings.num_predict
         self.suppress_reasoning = (
             settings.suppress_reasoning if suppress_reasoning is None else suppress_reasoning
         )
@@ -106,6 +107,7 @@ class OllamaClient:
             "options": {
                 "temperature": self.temperature if temperature is None else temperature,
                 "num_ctx": self.num_ctx,
+                "num_predict": self.num_predict,
             },
         }
         if tools:

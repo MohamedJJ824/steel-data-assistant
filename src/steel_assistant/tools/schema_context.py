@@ -97,22 +97,30 @@ def _fetch_keys(
             {"qualified": f"{schema}.{table}"},
         ).scalars()
     )
+    # pg_constraint rather than information_schema: those views filter rows by
+    # the caller's privileges, and as app_rw they returned nothing at all, so
+    # the prompt silently carried no join information whatsoever.
     foreign = [
         (r[0], r[1], r[2])
         for r in conn.execute(  # type: ignore[attr-defined]
             text(
                 """
-                SELECT kcu.column_name,
-                       ccu.table_schema || '.' || ccu.table_name AS references_table,
-                       ccu.column_name AS references_column
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON kcu.constraint_name = tc.constraint_name
-                 AND kcu.table_schema = tc.table_schema
-                JOIN information_schema.constraint_column_usage ccu
-                  ON ccu.constraint_name = tc.constraint_name
-                WHERE tc.constraint_type = 'FOREIGN KEY'
-                  AND tc.table_schema = :schema AND tc.table_name = :table
+                SELECT att.attname AS column_name,
+                       ref_ns.nspname || '.' || ref_cls.relname AS references_table,
+                       ref_att.attname AS references_column
+                FROM pg_constraint c
+                JOIN pg_class cls ON cls.oid = c.conrelid
+                JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+                JOIN pg_class ref_cls ON ref_cls.oid = c.confrelid
+                JOIN pg_namespace ref_ns ON ref_ns.oid = ref_cls.relnamespace
+                JOIN LATERAL unnest(c.conkey, c.confkey)
+                     AS k(attnum, ref_attnum) ON TRUE
+                JOIN pg_attribute att
+                     ON att.attrelid = c.conrelid AND att.attnum = k.attnum
+                JOIN pg_attribute ref_att
+                     ON ref_att.attrelid = c.confrelid AND ref_att.attnum = k.ref_attnum
+                WHERE c.contype = 'f' AND ns.nspname = :schema AND cls.relname = :table
+                ORDER BY att.attname
                 """
             ),
             {"schema": schema, "table": table},
@@ -161,14 +169,31 @@ def build_schema_info(schema: str = "plant", engine: Engine | None = None) -> li
     return tables
 
 
-def render_schema_context(tables: list[TableInfo], *, max_sample_chars: int = 90) -> str:
-    """Render the schema as the compact text the prompt embeds."""
+def render_schema_context(
+    tables: list[TableInfo],
+    *,
+    max_sample_chars: int = 90,
+    commented_columns: int = 12,
+) -> str:
+    """Render the schema as the compact text the prompt embeds.
+
+    Wide tables get their trailing columns listed without comments.
+    `plant.plate_inspections` has 30 columns, 25 of them self-describing
+    geometry measurements (`x_minimum`, `pixels_areas`), and rendering a
+    bilingual comment for each made it 40% of the whole prompt. A 2,830-token
+    prompt pushed the default 3B model into generating until it hit the output
+    cap, so one question took minutes and produced unparseable JSON.
+
+    Keys and foreign keys always keep their comments regardless of position,
+    since those are the columns a join depends on.
+    """
     blocks: list[str] = []
     for table in tables:
         lines = [f"TABLE {table.qualified}"]
         if table.comment:
             lines.append(f"  -- {table.comment}")
-        for column in table.columns:
+        foreign_key_columns = {column for column, _, _ in table.foreign_keys}
+        for index, column in enumerate(table.columns):
             flags = []
             if column.name in table.primary_key:
                 flags.append("PK")
@@ -176,7 +201,12 @@ def render_schema_context(tables: list[TableInfo], *, max_sample_chars: int = 90
                 flags.append("NOT NULL")
             suffix = f" [{', '.join(flags)}]" if flags else ""
             lines.append(f"  {column.name} {column.data_type}{suffix}")
-            if column.comment:
+            keeps_comment = (
+                index < commented_columns
+                or column.name in table.primary_key
+                or column.name in foreign_key_columns
+            )
+            if column.comment and keeps_comment:
                 lines.append(f"      -- {column.comment}")
         for column_name, ref_table, ref_column in table.foreign_keys:
             lines.append(f"  FOREIGN KEY {column_name} -> {ref_table}.{ref_column}")
@@ -196,3 +226,8 @@ def get_schema_context() -> str:
     """The rendered schema context, built once per process."""
     schema = get_settings().sql.allowed_schemas[0]
     return render_schema_context(build_schema_info(schema))
+
+
+def schema_context_tokens(context: str) -> int:
+    """Rough token count, for sanity-checking the prompt budget."""
+    return len(context) // 4

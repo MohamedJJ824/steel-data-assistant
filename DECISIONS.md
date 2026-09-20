@@ -216,3 +216,84 @@ This was not a speed annoyance but a blocker: at roughly eight minutes per call,
 **Reason.** The first end-to-end request returned: *"Il y a 402 tôles avec un défaut Bumps ... [DOC-ID §1]"*. The count was right and grounded 1/1, but `[DOC-ID §1]` is a citation to nothing — the model had copied the placeholder out of the instructions. A fabricated citation is worse than none, because it looks checkable.
 
 **Consequence.** The placeholder is gone. The model now sometimes restates the question and omits the SQL attribution instead, which the milestone 5 faithfulness metric will measure rather than being tuned against by hand.
+
+---
+
+## 2026-09-20 — Foreign keys were never reaching the prompt
+
+**Decision.** Read foreign keys from `pg_constraint` instead of the
+`information_schema` views.
+
+**Reason.** A bug present since the schema context was written. The
+`information_schema.table_constraints` / `key_column_usage` /
+`constraint_column_usage` views filter their rows by the caller's privileges,
+and as `app_rw` the join returned **nothing** for every table. The text-to-SQL
+prompt therefore never told the model how the tables relate — on the hardest
+part of the task, joins, it was working blind.
+
+It surfaced only because a probe for `FOREIGN KEY` in the rendered context came
+back false. Nothing errored; the prompt was simply missing a section, which is
+exactly the kind of fault that shows up as "the model is bad at joins".
+
+**Consequence.** `plate_inspections` and `maintenance_events` now declare their
+links to `fault_types` and `production_lines`. Immediately afterwards, a
+question about downtime by fault generated a correct three-table join.
+
+---
+
+## 2026-09-20 — Generated output is capped at 768 tokens
+
+**Decision.** Set `num_predict: 768` on every Ollama call.
+
+**Reason.** Ollama generates without limit by default, so a schema-constrained
+call can run until it fills `num_ctx`. One evaluation question —
+*"What is the total CO2 emitted across 2018, in tonnes?"* — hung for over four
+minutes and was still going; with the cap it stopped at exactly 768 tokens with
+`done_reason=length` and an unterminated JSON string, which is what made the
+looping visible. It had stalled two separate evaluation runs at the same
+question, and looked like memory pressure until it reproduced in isolation.
+
+**Consequence.** A pathological generation now fails in about a minute instead
+of hanging, and the self-correction loop can retry it. The cap is comfortably
+above what a query plus its explanation needs.
+
+---
+
+## 2026-09-20 — Wide tables render without per-column comments
+
+**Decision.** `render_schema_context` attaches comments to the first twelve
+columns plus every key and foreign key; the rest are listed as name and type.
+
+**Reason.** `plant.plate_inspections` has 30 columns, 25 of them self-describing
+geometry measurements (`x_minimum`, `pixels_areas`), each carrying a bilingual
+comment. That one table was 4,293 of 10,711 characters — 40% of the prompt —
+for very little the column name did not already say. Keys keep their comments
+because those are the columns a join depends on.
+
+**Consequence.** The context went from ~2,677 to ~2,435 tokens while gaining the
+foreign-key section. Combined with the output cap, the question that had hung
+twice now answers correctly in 37 seconds. The reduction alone was not the fix;
+the output cap was.
+
+---
+
+## 2026-09-20 — The evaluation was run at reduced scope
+
+**Decision.** Five configurations over a stratified 20-question subset (four per
+category) rather than the full 60, and `docs/EVAL_REPORT.md` states the actual
+count it was generated from.
+
+**Reason.** Measured throughput on this machine is roughly 60-140 s per
+question depending on memory pressure, and the Python process was observed at
+1 MB resident with the machine 8.4 GB into a 9.2 GB swap file. Five
+configurations over 60 questions is between seven and twenty hours, which is
+not a run that can be verified here.
+
+**What is preserved.** All five configurations, every category, both languages,
+and every metric. What is lost is statistical power: 20 questions means four per
+category, so a per-category figure moves by 0.25 per question. The report must
+not be read as separating configurations that differ by a few points.
+
+**Alternatives.** Dropping the judge would roughly halve the time but would also
+drop faithfulness and correctness, which are required metrics. A hosted endpoint
+would remove the constraint entirely and remains a config change.

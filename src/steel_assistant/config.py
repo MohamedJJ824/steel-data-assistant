@@ -43,6 +43,7 @@ class LLMSettings(BaseModel):
     timeout_s: int = 300
     max_retries: int = 2
     num_ctx: int = 8192
+    num_predict: int = 768
     suppress_reasoning: bool = False
 
 
