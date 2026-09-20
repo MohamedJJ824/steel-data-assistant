@@ -36,12 +36,14 @@ class LLMSettings(BaseModel):
     backend: Literal["ollama", "openai_compatible"] = "ollama"
     base_url: str = "http://localhost:11434"
     api_key: SecretStr = SecretStr("")
-    agent_model: str = "qwen3:4b"
-    sql_model: str = "qwen3:4b"
-    judge_model: str = "qwen3:4b"
+    agent_model: str = "qwen2.5:3b-instruct"
+    sql_model: str = "qwen2.5:3b-instruct"
+    judge_model: str = "qwen2.5:3b-instruct"
     temperature: float = 0.0
-    timeout_s: int = 120
+    timeout_s: int = 300
     max_retries: int = 2
+    num_ctx: int = 8192
+    suppress_reasoning: bool = False
 
 
 class RetrievalSettings(BaseModel):

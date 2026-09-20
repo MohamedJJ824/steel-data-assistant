@@ -32,7 +32,7 @@ class OllamaClient:
         *,
         default_model: str | None = None,
         timeout_s: int | None = None,
-        suppress_reasoning: bool = True,
+        suppress_reasoning: bool | None = None,
     ) -> None:
         """Configure the client. Defaults come from config/default.yaml."""
         settings = get_settings().llm
@@ -40,7 +40,10 @@ class OllamaClient:
         self.default_model = default_model or settings.agent_model
         self.timeout_s = timeout_s or settings.timeout_s
         self.temperature = settings.temperature
-        self.suppress_reasoning = suppress_reasoning
+        self.num_ctx = settings.num_ctx
+        self.suppress_reasoning = (
+            settings.suppress_reasoning if suppress_reasoning is None else suppress_reasoning
+        )
         self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout_s)
 
     def is_available(self) -> bool:
@@ -101,7 +104,8 @@ class OllamaClient:
             "stream": False,
             "keep_alive": "10m",
             "options": {
-                "temperature": self.temperature if temperature is None else temperature
+                "temperature": self.temperature if temperature is None else temperature,
+                "num_ctx": self.num_ctx,
             },
         }
         if tools:

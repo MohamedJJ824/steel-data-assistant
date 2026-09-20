@@ -16,13 +16,22 @@ llm:
   backend: ollama              # ollama | openai_compatible
   base_url: http://localhost:11434
   api_key: ""
-  # Small models chosen for an 8 GB machine; see DECISIONS.md.
-  agent_model: qwen3:4b
-  sql_model: qwen3:4b
-  judge_model: qwen3:4b
+  # Non-reasoning instruct models. A reasoning model (qwen3) spends thousands
+  # of tokens per call on chain-of-thought that is then discarded, which at
+  # this machine's throughput makes the agent unusable. See DECISIONS.md.
+  agent_model: qwen2.5:3b-instruct
+  sql_model: qwen2.5:3b-instruct
+  judge_model: qwen2.5:3b-instruct
   temperature: 0.0
-  timeout_s: 120
+  timeout_s: 300
   max_retries: 2
+  # The schema context alone is ~2,700 tokens, so the 4,096 default would leave
+  # no room for few-shot examples, the question and the answer.
+  num_ctx: 8192
+  # Only needed by hybrid reasoning models such as qwen3, where it prepends
+  # /no_think. Harmless to leave off for a plain instruct model, which would
+  # otherwise see the directive as literal text in the prompt.
+  suppress_reasoning: false
 
 retrieval:
   embedding_model: intfloat/multilingual-e5-base

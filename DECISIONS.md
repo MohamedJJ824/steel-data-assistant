@@ -164,3 +164,31 @@ Format: date, decision, reason, alternatives considered.
 **Consequence.** Changing the tsvector requires `build_index.py --rebuild`, not an incremental run: the content hash is unchanged, so the incremental path would skip every file.
 
 **Measured after the fix.** Twelve targeted retrieval queries across both corpora return the expected source at rank 1, under both `dense` and `hybrid`. These smoke queries are too easy to separate the two modes — that is what the milestone 5 evaluation is for, and no claim that hybrid beats dense is made until it is measured.
+
+---
+
+## 2026-09-20 — Default model switched from `qwen3:4b` to `qwen2.5:3b-instruct`
+
+**Decision.** All three model slots (`agent_model`, `sql_model`, `judge_model`) now point at a non-reasoning instruct model. `suppress_reasoning` defaults to false; `num_ctx` is set to 8192.
+
+**This corrects the 2026-09-19 entry above,** which recorded that `/no_think` reliably suppresses reasoning on qwen3. It does not. That conclusion came from a probe — "Reply with exactly one word: OK" — too trivial to expose the behaviour.
+
+**Reason.** Measured on a real generation prompt, `qwen3:4b` with `/no_think` produced **2,697 output tokens** and took **467 seconds** to return **471 characters** of usable French. The reasoning is emitted, then discarded by `strip_reasoning`. The same prompt on `qwen2.5:3b-instruct` produced **206 tokens** with no leaked reasoning and comparable prose quality.
+
+This was not a speed annoyance but a blocker: at roughly eight minutes per call, a single agent run would take half an hour and the five-configuration evaluation would have taken weeks. It surfaced because a 40-document generation run wrote nothing in 100 minutes.
+
+**Capabilities re-verified on the new model**, since C4 and the SQL tool depend on them: structured JSON output parsed first try (30 s, 146 tokens), and native tool calling emitted the right function with the right arguments (26 s, 120 tokens). Both still work.
+
+**A second finding from the same investigation.** Two models cannot be resident at once on 8 GB: with `qwen3` still held by `keep_alive`, a `qwen2.5` call spent about 610 of its 658 seconds loading. With one model resident, calls settle at 25-30 s. Anything that switches models mid-run pays that cost every time, so the judge model is deliberately the same model rather than a stronger one — and the evaluation report must say so, because a model judging its own output is a real limitation.
+
+**Alternatives.** Capping `num_predict` on qwen3 — rejected, it truncates mid-reasoning and yields nothing usable. A hosted endpoint — still available through config, and would remove the constraint entirely.
+
+---
+
+## 2026-09-20 — Schema context is read live, with sample rows
+
+**Decision.** `schema_context.py` builds the text-to-SQL prompt's schema description from the live database: columns, types, keys, the FR/EN `COMMENT ON` text, and three real rows per table. Cached per process.
+
+**Reason.** Evidence that the sample rows earn their tokens: the very first model probe of this project, with no schema context, generated `load_type = 'maximum load'`. The stored value is `Maximum_Load`, so that query returns zero rows and the wrong answer looks like a legitimate empty result. With the sample rows in the prompt, the same model got it exactly right.
+
+**Consequence.** The rendered context is about 10.7 KB, roughly 2,700 tokens — which is why `num_ctx` is 8192 rather than the 4096 default. `plant.plate_inspections` and its 27 measurement columns dominate; if the context needs trimming later, that table is where to start.
