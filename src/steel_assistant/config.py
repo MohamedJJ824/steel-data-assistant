@@ -96,6 +96,7 @@ class EvalSettings(BaseModel):
 
     experiment_name: str = "steel-assistant-eval"
     seed: int = 42
+    tracking_uri: str = "sqlite:///mlflow.db"
 
 
 class YamlSource(PydanticBaseSettingsSource):

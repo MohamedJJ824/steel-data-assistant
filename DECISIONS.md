@@ -362,3 +362,29 @@ never selects a constant as its answer.
 **Why it matters more than the individual failure.** It is the one metric that
 looks like a correctness guarantee and is not. The report should not let a
 reader infer otherwise.
+
+---
+
+## 2026-09-20 — MLflow needs a database backend, not `./mlruns`
+
+**Decision.** Default `eval.tracking_uri` to `sqlite:///mlflow.db`, and backfill
+the five completed runs with `scripts/rescore.py --mlflow`.
+
+**Reason.** MLflow 3.16 refuses a bare filesystem tracking store: *"the
+filesystem tracking backend is in maintenance mode"*. The plan (section 7.10)
+calls MLflow tracking mandatory, and `MLFLOW_TRACKING_URI=file://./mlruns`
+raised on every single run.
+
+**How it was missed, and why that is the more useful lesson.** The runner wraps
+MLflow logging in `except Exception` so tracking cannot fail a run — a sound
+choice, since losing an hour of evaluation to a logging error would be far
+worse. But it turned a hard failure into a printed line inside hundreds of lines
+of progress output, and the evaluation looked entirely successful. It surfaced
+only when querying the runs afterwards produced the same exception. Swallowing
+an exception is right here; swallowing it *quietly* was not, and the message is
+now visible because the run summary prints how many runs were logged.
+
+**The backfill is legitimate.** `rescore.py` reads the stored per-question CSVs
+and logs metrics computed from exactly the answers those runs produced, with
+parameters read from the eval config files. Runs are tagged
+`scored_by=scripts/rescore.py` so they are not mistaken for fresh ones.

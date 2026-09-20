@@ -74,5 +74,8 @@ api:
 eval:
   experiment_name: steel-assistant-eval
   seed: 42
+  # MLflow 3 refuses a bare ./mlruns file store, so the local default is
+  # sqlite. Override with MLFLOW_TRACKING_URI to point at a server.
+  tracking_uri: sqlite:///mlflow.db
 
 seed: 42

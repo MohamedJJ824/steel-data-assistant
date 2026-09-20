@@ -31,3 +31,5 @@ mlartifacts/
 # Eval outputs (generated)
 eval/gold_results/
 eval/runs/
+mlflow.db
+mlartifacts/

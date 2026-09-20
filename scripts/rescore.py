@@ -12,9 +12,11 @@ produced.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import glob
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -66,10 +68,75 @@ def load_outcomes(path: Path) -> list[QuestionOutcome]:
     return outcomes
 
 
+CONFIG_FILES = {
+    "c0": "c0_baseline.yaml",
+    "c1": "c1_fewshot.yaml",
+    "c2": "c2_hybrid.yaml",
+    "c3": "c3_rerank.yaml",
+    "c4": "c4_tool_calling.yaml",
+}
+
+
+def log_to_mlflow(config: str, metrics: dict, csv_path: Path) -> bool:
+    """Record a re-scored run in MLflow.
+
+    Used to backfill: MLflow 3 rejects a bare ./mlruns file store, so tracking
+    failed silently during the original runs while the evaluation itself
+    succeeded. The metrics logged here are computed from exactly the answers
+    those runs produced.
+    """
+    try:
+        import mlflow
+
+        from steel_assistant.config import load_config
+    except ImportError:
+        print("  mlflow not installed; skipping")
+        return False
+
+    config_path = REPO_ROOT / "config" / "eval_configs" / CONFIG_FILES[config]
+    settings = load_config(config_path)
+    try:
+        if not os.environ.get("MLFLOW_TRACKING_URI"):
+            mlflow.set_tracking_uri(settings.eval.tracking_uri)
+        mlflow.set_experiment(settings.eval.experiment_name)
+        with mlflow.start_run(run_name=config):
+            mlflow.log_params(
+                {
+                    "config": config,
+                    "agent_mode": settings.agent.mode,
+                    "sql_fewshot": settings.sql.fewshot,
+                    "sql_max_retries": settings.sql.max_retries,
+                    "retrieval_mode": settings.retrieval.mode,
+                    "rerank": settings.retrieval.rerank,
+                    "embedding_model": settings.retrieval.embedding_model,
+                    "agent_model": settings.llm.agent_model,
+                    "sql_model": settings.llm.sql_model,
+                    "judge_model": settings.llm.judge_model,
+                    "llm_backend": settings.llm.backend,
+                    "scored_by": "scripts/rescore.py",
+                }
+            )
+            mlflow.log_metrics(
+                {k: float(v) for k, v in metrics.items() if isinstance(v, int | float)}
+            )
+            mlflow.log_artifact(str(csv_path))
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"  mlflow logging failed: {exc}")
+        return False
+
+
 def main() -> int:
     """Rewrite summary.json from the latest CSV of each configuration."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--mlflow", action="store_true", help="also log each re-scored run to MLflow"
+    )
+    args = parser.parse_args()
+
     summary_path = RUNS_DIR / "summary.json"
     existing = json.loads(summary_path.read_text()) if summary_path.is_file() else {}
+    logged = 0
 
     for config in sorted({Path(p).name[:2] for p in glob.glob(str(RUNS_DIR / "c*.csv"))}):
         matches = sorted(RUNS_DIR.glob(f"{config}-*.csv"))
@@ -95,9 +162,13 @@ def main() -> int:
         note = f"  refusal_accuracy {before} -> {after}" if before != after else ""
         print(f"{config}: {len(outcomes)} questions from {path.name}{note}")
         existing[config] = metrics
+        if args.mlflow and config in CONFIG_FILES:
+            logged += log_to_mlflow(config, metrics, path)
 
     summary_path.write_text(json.dumps(existing, indent=2, default=str), encoding="utf-8")
     print(f"\nrewrote {summary_path.relative_to(REPO_ROOT)}")
+    if args.mlflow:
+        print(f"logged {logged} run(s) to MLflow")
     return 0
 
 

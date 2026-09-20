@@ -255,6 +255,12 @@ def _log_to_mlflow(
         return
 
     try:
+        # MLflow 3 raises on a bare ./mlruns file store, so an explicit backend
+        # is set rather than relying on the default. An env override still wins.
+        import os
+
+        if not os.environ.get("MLFLOW_TRACKING_URI"):
+            mlflow.set_tracking_uri(settings.eval.tracking_uri)
         mlflow.set_experiment(settings.eval.experiment_name)
         with mlflow.start_run(run_name=config_name):
             mlflow.log_params(

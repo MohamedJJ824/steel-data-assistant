@@ -95,7 +95,7 @@ ui:  ## Run the Streamlit UI locally
 	$(PY) -m streamlit run ui/app.py
 
 mlflow:  ## Serve the MLflow UI over the local run store
-	$(PY) -m mlflow ui --backend-store-uri ./mlruns --port 5000
+	$(PY) -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 
 clean:  ## Stop the stack AND destroy the database volume
 	$(COMPOSE) down -v
