@@ -203,3 +203,33 @@ def test_faithfulness_threshold():
     metrics = aggregate(outcomes)
     assert metrics.faithfulness_mean == pytest.approx(4.0)
     assert metrics.faithfulness_at_least_4 == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        # Found by the evaluation: a real refusal the first marker list missed,
+        # which understated refusal accuracy in the first report.
+        "The plant's production database covers our own production data. "
+        "I'm sorry, but I can't assist with information about our main "
+        "competitor's production capacity.",
+        "I am unable to provide the current market price of steel.",
+        "Je ne suis pas en mesure de répondre à cette question.",
+        "Cette question ne fait pas partie du périmètre de l'assistant.",
+        "Désolé, cette information n'est pas couverte.",
+    ],
+)
+def test_refusal_phrasings_found_in_real_runs(answer):
+    assert is_refusal(answer)
+
+
+def test_widened_markers_do_not_swallow_real_answers():
+    """The markers must not fire on ordinary answers, or false-refusal rate
+    would be inflated instead."""
+    for answer in (
+        "Il y a 402 tôles avec un défaut Bumps, d'après la requête SQL.",
+        "The total is 959636.7 kWh from the SQL query above.",
+        "La durée de mise en attente est de 72 heures [POL-QUA-HOLD §Barème].",
+        "energy_intensity in kpi_energy.py uses the plate count as denominator.",
+    ):
+        assert not is_refusal(answer), answer

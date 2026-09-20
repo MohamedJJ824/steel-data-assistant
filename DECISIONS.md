@@ -297,3 +297,68 @@ not be read as separating configurations that differ by a few points.
 **Alternatives.** Dropping the judge would roughly halve the time but would also
 drop faithfulness and correctness, which are required metrics. A hosted endpoint
 would remove the constraint entirely and remains a config change.
+
+---
+
+## 2026-09-20 — The refusal detector had a false negative that understated a headline metric
+
+**Decision.** Widen `REFUSAL_MARKERS` and re-score the stored results with
+`scripts/rescore.py` rather than re-running every configuration.
+
+**Reason.** The generated failure analysis flagged Q054 as "an out-of-scope
+question was answered". Reading the answer, it was a clean refusal: *"I'm sorry,
+but I can't assist with information about our main competitor's production
+capacity."* The marker list had `cannot answer` but not `can't assist`, so a
+correct refusal scored as a failure.
+
+The correction is material. Refusal accuracy went from 0.667 to **1.000** for
+C0, C1 and C2, and from 0.333 to 0.667 for C3. The first report understated how
+well the system declines out-of-scope questions.
+
+**Checked for the opposite error.** Widening markers risks catching real answers
+and inflating false-refusal instead. Across all five runs exactly one answerable
+question now matches, and reading it, it is genuinely a refusal — the SQL tool
+failed and the answer says the figure is unavailable. So C0's false-refusal rate
+of 0.083 is correct rather than an artefact.
+
+**Why re-score rather than re-run.** Refusal is derived from the answer text,
+which is stored per question. Re-scoring uses exactly the answers the agent
+produced; nothing was regenerated. Re-running five configurations would have
+cost another hour for an identical result.
+
+**Wider point.** A deterministic metric is only as good as its rule, and this
+one was wrong in the direction that flattered nothing — it made the system look
+worse. It was found because the report prints real failing answers rather than
+just counts.
+
+---
+
+## 2026-09-20 — Number grounding can be satisfied by a fabricated literal
+
+**Decision.** Recorded as a known limitation, in `ARCHITECTURE.md` and the
+report. Not fixed.
+
+**Reason.** Evaluation question Q020 asks for the peak-load threshold, which
+lives in a document. The router sent it to SQL, and the model generated:
+
+```sql
+SELECT 100.0 AS peak_load_threshold FROM plant.energy_readings WHERE usage_kwh > 100.0 LIMIT 1
+```
+
+It then answered "100.0 kWh". The real threshold is **99**. The number-grounding
+check passed, because 100.0 did appear in the tool output — the tool output was
+the model's own invented literal.
+
+So grounding verifies that a number in the answer came from a tool, not that the
+tool obtained it from the data. A `SELECT <literal>` launders an invented figure
+into an apparently grounded one.
+
+**Mitigations that already exist.** The SQL is shown to the user in full, so the
+query is inspectable, and the guard rejects queries that read no allowed table —
+which is why this one still touches `energy_readings`. A future fix would flag
+projections that are bare literals, since a legitimate analytical query almost
+never selects a constant as its answer.
+
+**Why it matters more than the individual failure.** It is the one metric that
+looks like a correctness guarantee and is not. The report should not let a
+reader infer otherwise.

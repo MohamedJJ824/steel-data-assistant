@@ -137,6 +137,11 @@ model, no data leaves the machine. Row contents are never logged.
   carry the weight of any conclusion.
 - **Synthetic corpus.** The measurements are real; the plant they describe is
   not. See `DATA_CARD.md`.
+- **Number grounding is not a correctness guarantee.** It checks that a figure
+  in the answer appears in the tool outputs, not that the tool obtained it from
+  the data. A generated `SELECT 100.0 AS threshold` launders an invented number
+  into an apparently grounded one — this happened during evaluation, and the
+  real threshold was 99. The SQL is always shown, so the query is inspectable.
 - **Small models.** Defaults are sized for an 8 GB laptop. Larger models are a
   configuration change, and `EVAL_REPORT.md` states which models produced its
   numbers.
